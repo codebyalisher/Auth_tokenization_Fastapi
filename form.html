@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>
+</head>
+<body>
+    <h1>Welcome to Authentication Demo</h1>
+
+    <!-- Registration Form -->
+    <div id="register-section">
+        <h2>Register</h2>
+        <input type="text" id="register-username" placeholder="Username" />
+        <input type="password" id="register-password" placeholder="Password" />
+        <button onclick="register()">Register</button>
+    </div>
+
+    <!-- Login Form -->
+    <div id="login-section">
+        <h2>Login</h2>
+        <input type="text" id="login-username" placeholder="Username" />
+        <input type="password" id="login-password" placeholder="Password" />
+        <button onclick="login()">Login</button>
+    </div>
+
+    <!-- Logout Button -->
+    <button id="logout-btn" style="display: none;" onclick="logout()">Logout</button>
+
+    <script>
+        const API_URL = "http://localhost:8000"; // FastAPI backend URL
+
+        // Register new user
+        async function register() {
+            const username = document.getElementById("register-username").value;
+            const password = document.getElementById("register-password").value;
+
+            const response = await fetch(`${API_URL}/auth/register`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ username, password }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                alert("Registration successful!");
+            } else {
+                alert(data.detail);
+            }
+        }
+
+        // Login and store tokens in localStorage
+        async function login() {
+            const username = document.getElementById("login-username").value;
+            const password = document.getElementById("login-password").value;
+
+            const response = await fetch(`${API_URL}/auth/login`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ username, password }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                localStorage.setItem("access_token", data.access_token);
+                localStorage.setItem("refresh_token", data.refresh_token);
+
+                alert("Login successful!");
+                document.getElementById("login-section").style.display = "none";
+                document.getElementById("logout-btn").style.display = "block";
+
+                // Start token expiration check and refresh mechanism
+                startTokenExpirationCheck();
+            } else {
+                alert(data.detail);
+            }
+        }
+
+        // Token refresh logic (check token expiry)
+        function startTokenExpirationCheck() {
+            setInterval(() => {
+                const accessToken = localStorage.getItem("access_token");
+                if (!accessToken) {
+                    console.log("No access token found, please login again.");
+                    return;
+                }
+
+                const decodedToken = jwt_decode(accessToken); // Decode the JWT to get the expiration
+                const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+
+                if (decodedToken.exp <= currentTime) {
+                    console.log("Access token expired. Refreshing token...");
+                    refreshAccessToken();
+                }
+            }, 60000); // Check every minute
+        }
+
+        // Refresh the access token using the refresh token
+        async function refreshAccessToken() {
+            const refreshToken = localStorage.getItem("refresh_token");
+
+            const response = await fetch(`${API_URL}/auth/refresh_token`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ refresh_token: refreshToken }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                // Save the new access token to localStorage
+                localStorage.setItem("access_token", data.access_token);
+                console.log("Token refreshed!");
+            } else {
+                console.error("Failed to refresh token");
+            }
+        }
+
+        // Logout and clear tokens
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            document.getElementById("login-section").style.display = "block";
+            document.getElementById("logout-btn").style.display = "none";
+            alert("You have logged out.");
+        }
+
+        // On page load, check if the user is already logged in
+        window.onload = function() {
+            const accessToken = localStorage.getItem("access_token");
+            if (accessToken) {
+                document.getElementById("login-section").style.display = "none";
+                document.getElementById("logout-btn").style.display = "block";
+                startTokenExpirationCheck(); // Start token expiration check if already logged in
+            }
+        };
+    </script>
+</body>
+</html>
