@@ -1,0 +1,10 @@
+# Dockerfile.frontend for HTML/JS Frontend
+
+# Use the official Nginx image from Docker Hub
+FROM nginx:alpine
+
+# Copy the frontend files into the Nginx web directory
+COPY . /usr/share/nginx/html
+
+# Expose the port Nginx will run on
+EXPOSE 80

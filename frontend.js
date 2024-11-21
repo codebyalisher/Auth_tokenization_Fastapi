@@ -84,3 +84,4 @@ function trackUserActivity() {
 
 // Call the tracking function on page load
 trackUserActivity();
+

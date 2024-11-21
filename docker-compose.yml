@@ -1,0 +1,34 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: .  # The directory to build the Docker image from
+      dockerfile: Dockerfile.backend  # Use Dockerfile.backend for the backend
+    container_name: fastapi_backend  # Container name for the backend
+    ports:
+      - "8000:8000"  # Expose the backend to port 8000 on the host
+    env_file:
+      - .env  # Reference the .env file to load environment variables
+    networks:
+      - tokenauthnetwork  # Use a custom network for communication
+
+  frontend:
+    build:
+      context: .  # The directory to build the Docker image from
+      dockerfile: Dockerfile.frontend  # Use Dockerfile.frontend for the frontend
+    container_name: frontend  # Container name for the frontend
+    ports:
+      - "80:80"  # Expose the frontend to port 80 on the host
+    depends_on:
+      - backend  # Ensure the backend starts before the frontend
+    env_file:
+      - .env  # Reference the .env file for the frontend if needed   
+    environment:
+      - API_URL=http://fastapi_backend:8000  # Ensure frontend is pointing to backend
+    networks:
+      - tokenauthnetwork  # Use the same network for communication
+
+networks:
+  tokenauthnetwork:  # Define a custom network for inter-container communication
+    driver: bridge

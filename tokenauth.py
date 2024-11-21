@@ -9,14 +9,19 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from jose import JWTError, ExpiredSignatureError
+from jwt import ExpiredSignatureError,InvalidTokenError
 from fastapi_sqlalchemy import DBSessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi.staticfiles import StaticFiles
+import secrets
 load_dotenv()
+app = FastAPI()
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
+# Serve the static files
+app.mount("/static", StaticFiles(directory="."), name="static")
+# Generate SECRET_KEY dynamically if not already set in environment
+SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))  # Default to a random key if not set in .env
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))  # Token expiration time
 REFRESH_TOKEN_EXPIRE_MINUTES = int(os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES", 60))  # Refresh token expiration time
 
@@ -58,7 +63,7 @@ def verify_token(token: str):
         return payload
     except ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 Base = declarative_base()
@@ -76,7 +81,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def create_tables():
     Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+
 
 app.add_middleware(DBSessionMiddleware, db_url=DATABASE_URL)
 
@@ -114,7 +119,9 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all HTTP methods (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],  # Allows all headers
 )
-
+@router.get("/")
+async def redirect_to_docs():
+    return RedirectResponse(url="/docs")
 @router.post("/register")
 async def register_user(request: CreateUserRequest, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.username == request.username).first()
@@ -150,7 +157,7 @@ async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
         refresh_token = create_refresh_token(data={"sub": user.username})
         return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
     
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
 
 @router.post("/logout")
